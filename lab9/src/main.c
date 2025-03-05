@@ -2,8 +2,11 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
+#include "maze.h"
+#include <time.h>
 
 #define INF LLONG_MAX
+#define MAX_VERTICES 5000
 
 /* Алгоритм Дейкстра прекрасно расписан в 3-ем издании CLRS со всей его подноготной (658 стр.)
    Здесь -> https://github.com/QSaman/CLRS/blob/master/3rdEdition/CLRS_3rd_Edition.pdf с 58стр. видно, как реализация влияет на время
@@ -179,63 +182,85 @@ void dijkstra(int N, int S, int F, int** graph)
     FreeBitset(visited);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    FILE* in = NULL;
     int N, S, F, M;
     int** graph = NULL;
     long long* dist = NULL;
     int* prev = NULL;
     int* countPaths = NULL;
 
+    // Обработка аргументов командной строки
+    if (argc == 3) // ./program <X> <Y>
+    {
+        int X = atoi(argv[1]);
+        int Y = atoi(argv[2]);
+        if (X < 3 || Y < 3 || X * Y > MAX_VERTICES)
+        {
+            printf("Invalid maze dimensions: X=%d, Y=%d (must be >= 3 and X*Y <= %d)\n",
+                   X, Y, MAX_VERTICES);
+            return 0;
+        }
+        maze_gen(X, Y);
+        in = fopen("maze.txt", "r");
+    }
+    else // ./program или ./program <input_file>
+    {
+        in = fopen((argc == 2) ? argv[1] : "in.txt", "r");
+    }
 
-    if (scanf("%d", &N) != 1 || N < 0 || N > 5000)
+    if (!in)
+    {
+        printf("Cannot open input file\n");
+        return 0;
+    }
+
+    if (fscanf(in, "%d", &N) != 1 || N < 0 || N > 5000)
     {
         printf("bad number of vertices\n");
-        goto cleanup;
+        fclose(in);
+        return 0;
     }
-    if (scanf("%d %d", &S, &F) != 2 || S < 1 || S > N || F < 1 || F > N)
+    if (fscanf(in, "%d %d", &S, &F) != 2 || S < 1 || S > N || F < 1 || F > N)
     {
         printf("bad vertex\n");
-        goto cleanup;
+        fclose(in);
+        return 0;
     }
-    if (scanf("%d", &M) != 1 || M < 0 || M > N * (N - 1) / 2)
+    if (fscanf(in, "%d", &M) != 1 || M < 0 || M > N * (N - 1) / 2)
     {
         printf("bad number of edges\n");
-        goto cleanup;
+        fclose(in);
+        return 0;
     }
 
-    // Создание графа
     graph = (int**)malloc((N + 1) * sizeof(int*));
-    if (graph == NULL)
+    if (!graph)
     {
         printf("Memory allocation failed\n");
-        goto cleanup;
+        fclose(in);
+        return 0;
     }
     for (int i = 1; i <= N; i++)
     {
         graph[i] = (int*)malloc((N + 1) * sizeof(int));
-        if (graph[i] == NULL)
+        if (!graph[i])
         {
             printf("Memory allocation failed\n");
-            for (int j = 1; j < i; j++)
-            {
-                free(graph[j]);
-            }
+            for (int j = 1; j < i; j++) free(graph[j]);
             free(graph);
-            graph = NULL;
-            goto cleanup;
+            fclose(in);
+            return 0;
         }
-        for (int j = 1; j <= N; j++)
-        {
-            graph[i][j] = 0;
-        }
+        for (int j = 1; j <= N; j++) graph[i][j] = 0;
     }
 
     for (int i = 0; i < M; i++)
     {
         int u, v;
         long long w;
-        if (scanf("%d %d %lld", &u, &v, &w) != 3)
+        if (fscanf(in, "%d %d %lld", &u, &v, &w) != 3)
         {
             printf("bad number of lines\n");
             goto cleanup;
@@ -257,7 +282,7 @@ int main()
     dist = (long long*)malloc((N + 1) * sizeof(long long));
     prev = (int*)malloc((N + 1) * sizeof(int));
     countPaths = (int*)malloc((N + 1) * sizeof(int));
-    if (dist == NULL || prev == NULL || countPaths == NULL)
+    if (!dist || !prev || !countPaths)
     {
         printf("Memory allocation failed\n");
         goto cleanup;
@@ -274,20 +299,15 @@ int main()
     dijkstra(N, S, F, graph);
 
 cleanup:
-    // Освобождение всей выделенной памяти
-    if (graph != NULL)
+    if (graph)
     {
         for (int i = 1; i <= N; i++)
-        {
-            if (graph[i] != NULL)
-            {
-                free(graph[i]);
-            }
-        }
+            if (graph[i]) free(graph[i]);
         free(graph);
     }
     free(dist);
     free(prev);
     free(countPaths);
+    if (in) fclose(in);
     return 0;
 }
