@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <limits.h>
 #include <string.h>
 #include "maze.h"
-#include <time.h>
 
 #define INF LLONG_MAX
 #define MAX_VERTICES 5000
@@ -16,14 +16,14 @@
 
 typedef struct
 {
-    unsigned int bits[(5000 + 31) / 32];
+    uint_fast32_t bits[(5000 + 31) / 32]; // Флаг - посещения вершины. 5000 бит на ячейки по 32 бита в uint32
 } Bitset;
 
 Bitset* InitBitset()
 {
-    Bitset* bs = (Bitset*)malloc(sizeof(Bitset));
-    if (bs) memset(bs->bits, 0, sizeof(bs->bits)); // Зануляем выделенную память
-    return bs;
+    Bitset* BtSt = (Bitset*)malloc(sizeof(Bitset));
+    if (BtSt) memset(BtSt->bits, 0, sizeof(BtSt->bits)); // Зануляем выделенную память
+    return BtSt;
 }
 
 /* Интерпретация Bitset из C++.
@@ -31,33 +31,33 @@ Bitset* InitBitset()
    Bitset использует в ~10 раз меньше памяти, чем bool-массив. + он быстрее из-за использования побитовых операций
    Это позволяет проходить тест №50. */
 
-void FreeBitset(Bitset* bs)
+void FreeBitset(Bitset* BtSt)
 {
-    if (bs)
+    if (BtSt)
     {
-        free(bs);
+        free(BtSt);
     }
 }
 
-void SetBitsetBit(Bitset* bs, int index)
+void SetBitsetBit(Bitset* BtSt, int index)
 {
-    if (bs && index > 0)
+    if (BtSt && index > 0)
     {
         index--;
         /* Преобразование в 0-based индексацию, т.к. на входе index принадлежит 1-based индексации.
          Что значит индексы идут не с 0 до N-1, а с 1 до N. */
-        bs->bits[index / 32] |= (1 << (index % 32));
+        BtSt->bits[index / 32] |= (1 << (index % 32));
     }
 }
 
-int GetBitsetBit(const Bitset* bs, int index)
+int GetBitsetBit(const Bitset* BtSt, int index)
 {
-    if (bs && index > 0)
+    if (BtSt && index > 0)
     {
         index--;
         /* Преобразование в 0-based индексацию, т.к. на входе index принадлежит 1-based индексации.
          Что значит индексы идут не с 0 до N-1, а с 1 до N. */
-        return (bs->bits[index / 32] & (1 << (index % 32))) != 0;
+        return (BtSt->bits[index / 32] & (1 << (index % 32))) != 0;
     }
     return 0;
 }
@@ -66,14 +66,14 @@ void dijkstra(int N, int S, int F, int** graph)
 {
     long long* dist = (long long*)malloc((N + 1) * sizeof(long long));
     int* prev = (int*)malloc((N + 1) * sizeof(int));
-    int* countPaths = (int*)malloc((N + 1) * sizeof(int));
+    int* CountPaths = (int*)malloc((N + 1) * sizeof(int));
     Bitset* visited = InitBitset();
 
-    if (!dist || !prev || !countPaths || !visited)
+    if (!dist || !prev || !CountPaths || !visited)
     {
         free(dist);
         free(prev);
-        free(countPaths);
+        free(CountPaths);
         FreeBitset(visited);
         return; // Ошибка выделения памяти
     }
@@ -83,21 +83,21 @@ void dijkstra(int N, int S, int F, int** graph)
     {
         dist[i] = INF;
         prev[i] = -1;
-        countPaths[i] = 0;
+        CountPaths[i] = 0;
     }
     dist[S] = 0;
-    countPaths[S] = 1;
+    CountPaths[S] = 1;
 
     // Перебор
     for (int count = 0; count < N; count++)
     {
         int u = -1;
-        long long minDist = INF;
+        long long MinDist = INF;
         for (int v = 1; v <= N; v++)
         {
-            if (!GetBitsetBit(visited, v) && dist[v] < minDist)
+            if (!GetBitsetBit(visited, v) && dist[v] < MinDist)
             {
-                minDist = dist[v];
+                MinDist = dist[v];
                 u = v;
             }
         }
@@ -115,11 +115,11 @@ void dijkstra(int N, int S, int F, int** graph)
                 {
                     dist[v] = dist[u] + weight;
                     prev[v] = u;
-                    countPaths[v] = countPaths[u];
+                    CountPaths[v] = CountPaths[u];
                 }
                 else if (dist[u] + weight == dist[v])
                 {
-                    countPaths[v]++;
+                    CountPaths[v]++;
                 }
             }
         }
@@ -148,7 +148,7 @@ void dijkstra(int N, int S, int F, int** graph)
     {
         printf("no path\n");
     }
-    else if (dist[F] > INT_MAX && countPaths[F] > 1)
+    else if (dist[F] > INT_MAX && CountPaths[F] > 1)
     {
         printf("overflow\n");
     }
@@ -178,7 +178,7 @@ void dijkstra(int N, int S, int F, int** graph)
     // Освобождение памяти
     free(dist);
     free(prev);
-    free(countPaths);
+    free(CountPaths);
     FreeBitset(visited);
 }
 
@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
     int** graph = NULL;
     long long* dist = NULL;
     int* prev = NULL;
-    int* countPaths = NULL;
+    int* CountPaths = NULL;
 
     // Обработка аргументов командной строки
     if (argc == 3) // ./program <X> <Y>
@@ -253,7 +253,10 @@ int main(int argc, char* argv[])
             fclose(in);
             return 0;
         }
-        for (int j = 1; j <= N; j++) graph[i][j] = 0;
+        for (int j = 1; j <= N; j++)
+        {
+            graph[i][j] = 0;
+        }
     }
 
     for (int i = 0; i < M; i++)
@@ -275,14 +278,16 @@ int main(int argc, char* argv[])
             printf("bad length\n");
             goto cleanup;
         }
+
+        // Матрица смежности:
         graph[u][v] = w;
         graph[v][u] = w;
     }
 
     dist = (long long*)malloc((N + 1) * sizeof(long long));
     prev = (int*)malloc((N + 1) * sizeof(int));
-    countPaths = (int*)malloc((N + 1) * sizeof(int));
-    if (!dist || !prev || !countPaths)
+    CountPaths = (int*)malloc((N + 1) * sizeof(int));
+    if (!dist || !prev || !CountPaths)
     {
         printf("Memory allocation failed\n");
         goto cleanup;
@@ -292,10 +297,10 @@ int main(int argc, char* argv[])
     {
         dist[i] = INF;
         prev[i] = -1;
-        countPaths[i] = 0;
+        CountPaths[i] = 0;
     }
     dist[S] = 0;
-    countPaths[S] = 1;
+    CountPaths[S] = 1;
     dijkstra(N, S, F, graph);
 
 cleanup:
@@ -307,7 +312,7 @@ cleanup:
     }
     free(dist);
     free(prev);
-    free(countPaths);
+    free(CountPaths);
     if (in) fclose(in);
     return 0;
 }
