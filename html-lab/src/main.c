@@ -97,7 +97,6 @@ void visualize_graph(const char* input_file, const char* output_file) {
 }
 
 int main() {
-    // Вызов функции для визуализации графа
     visualize_graph("in.txt", "test.html");
     return 0;
 }
