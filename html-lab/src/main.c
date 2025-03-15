@@ -4,18 +4,19 @@
 
 #define PI 3.1415
 
-int main() {
-    FILE* fin = fopen("in.txt", "r");
+// Функция для визуализации графа
+void visualize_graph(const char* input_file, const char* output_file) {
+    FILE* fin = fopen(input_file, "r");
     if (fin == NULL) {
         printf("Wrong input file.\n");
-        return 1;
+        return;
     }
 
     int N;
     if (fscanf(fin, "%d", &N) != 1) {
         printf("Reading error.\n");
         fclose(fin);
-        return 1;
+        return;
     }
 
     int* x_coords = malloc(N * sizeof(int));
@@ -26,15 +27,16 @@ int main() {
         free(x_coords);
         free(y_coords);
         fclose(fin);
-        return 1;
+        return;
     }
 
-    FILE* fout = fopen("test.html", "w");
+    FILE* fout = fopen(output_file, "w");
     if (fout == NULL) {
         printf("Cannot create output file.\n");
         free(x_coords);
         free(y_coords);
-        return 1;
+        fclose(fin);
+        return;
     }
 
     fprintf(fout, "<!DOCTYPE html>\n");
@@ -92,6 +94,9 @@ int main() {
     fclose(fin);
     free(x_coords);
     free(y_coords);
+}
 
+int main() {
+    visualize_graph("in.txt", "test.html");
     return 0;
 }
