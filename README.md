@@ -8,6 +8,6 @@ Already done next labs:
 - lab3-0
 - lab3-1
 - lab4
-- lab9
+- lab8-0 + SVG
+- lab9 + HTML
 - wave-lab
-- html-lab
