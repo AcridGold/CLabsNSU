@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <string.h>
+#include <ctype.h>
 #include "maze.h"
 
 #define INF LLONG_MAX
@@ -22,7 +23,7 @@ typedef struct
 Bitset* InitBitset()
 {
     Bitset* BtSt = (Bitset*)malloc(sizeof(Bitset));
-    if (BtSt) memset(BtSt->bits, 0, sizeof(BtSt->bits)); // Зануляем выделенную память
+    if (BtSt) memset(BtSt->bits, 0, sizeof(BtSt->bits));
     return BtSt;
 }
 
@@ -31,35 +32,116 @@ Bitset* InitBitset()
    Bitset использует в ~10 раз меньше памяти, чем bool-массив. + он быстрее из-за использования побитовых операций
    Это позволяет проходить тест №50. */
 
-void FreeBitset(Bitset* BtSt)
-{
-    if (BtSt)
-    {
-        free(BtSt);
-    }
-}
+// Макросы для битсета
+#define FREE_BITSET(BtSt) \
+ do { if (BtSt) free(BtSt); } while (0)
 
-void SetBitsetBit(Bitset* BtSt, int index)
-{
-    if (BtSt && index > 0)
-    {
-        index--;
-        /* Преобразование в 0-based индексацию, т.к. на входе index принадлежит 1-based индексации.
-         Что значит индексы идут не с 0 до N-1, а с 1 до N. */
-        BtSt->bits[index / 32] |= (1 << (index % 32));
-    }
-}
+#define SET_BITSET_BIT(BtSt, index) \
+ do { if (BtSt && (index) > 0) { \
+ int idx = (index) - 1; \
+ (BtSt)->bits[idx / 32] |= (1 << (idx % 32)); \
+ }} while (0)
 
-int GetBitsetBit(const Bitset* BtSt, int index)
+#define GET_BITSET_BIT(BtSt, index) \
+ ((BtSt && (index) > 0) ? \
+ (((BtSt)->bits[((index) - 1) / 32] & (1 << (((index) - 1) % 32))) != 0) : 0)
+
+// HTML с подсветкой пути
+void generateHtml(const char* outputFileName, int N, int** graph, long long* dist, int* path, int pathSize)
 {
-    if (BtSt && index > 0)
-    {
-        index--;
-        /* Преобразование в 0-based индексацию, т.к. на входе index принадлежит 1-based индексации.
-         Что значит индексы идут не с 0 до N-1, а с 1 до N. */
-        return (BtSt->bits[index / 32] & (1 << (index % 32))) != 0;
+    FILE* out = fopen(outputFileName, "w");
+    if (!out) {
+        fprintf(stderr, "Cannot create output file %s\n", outputFileName);
+        return;
     }
-    return 0;
+
+    fprintf(out, "<!DOCTYPE html>\n<html>\n<head>\n");
+    fprintf(out, "    <title>Adjacency Matrix and Shortest Paths</title>\n");
+    fprintf(out, "    <style>\n");
+    fprintf(out, "        table { border-collapse: collapse; }\n");
+    fprintf(out, "        th, td { border: 1px solid black; padding: 5px; text-align: center; }\n");
+    fprintf(out, "        .path { background-color: brown; }\n"); // Стиль для ребер пути
+    fprintf(out, "        .vertex-path { background-color: yellow; }\n"); // Стиль для вершин пути
+    fprintf(out, "    </style>\n");
+    fprintf(out, "</head>\n<body>\n");
+
+    // Матрица смежности с путем
+    fprintf(out, "    <h2>Adjacency Matrix</h2>\n    <table>\n");
+    fprintf(out, "        <tr><th></th>");
+    // Заголовки столбцов
+    for (int i = 1; i <= N; i++) {
+        int isVertexInPath = 0;
+        for (int k = 0; k < pathSize; k++) {
+            if (path[k] == i) {
+                isVertexInPath = 1;
+                break;
+            }
+        }
+        if (isVertexInPath) {
+            fprintf(out, "<th class=\"vertex-path\">%d</th>", i);
+        } else {
+            fprintf(out, "<th>%d</th>", i);
+        }
+    }
+    fprintf(out, "</tr>\n");
+
+    // Строки матрицы
+    for (int i = 1; i <= N; i++) {
+        int isVertexInPath = 0;
+        for (int k = 0; k < pathSize; k++) {
+            if (path[k] == i) {
+                isVertexInPath = 1;
+                break;
+            }
+        }
+        if (isVertexInPath) {
+            fprintf(out, "        <tr><th class=\"vertex-path\">%d</th>", i);
+        } else {
+            fprintf(out, "        <tr><th>%d</th>", i);
+        }
+
+        for (int j = 1; j <= N; j++) {
+            int isPath = 0;
+            // Если часть пути (ребро)
+            for (int k = 0; k < pathSize - 1; k++) {
+                if ((path[k] == i && path[k + 1] == j) || (path[k] == j && path[k + 1] == i)) {
+                    isPath = 1;
+                    break;
+                }
+            }
+            if (isPath && graph[i][j] != 0) {
+                fprintf(out, "<td class=\"path\">%d</td>", graph[i][j]);
+            } else {
+                fprintf(out, "<td>%d</td>", graph[i][j]);
+            }
+        }
+        fprintf(out, "</tr>\n");
+    }
+    fprintf(out, "    </table>\n");
+
+    // Таблица расстояний
+    fprintf(out, "    <h2>Shortest Paths from Start Vertex</h2>\n    <table>\n");
+    fprintf(out, "        <tr><th>Vertex</th><th>Distance</th></tr>\n");
+    for (int i = 1; i <= N; i++) {
+        fprintf(out, "        <tr><td>%d</td><td>", i);
+        if (dist[i] == INF) {
+            fprintf(out, "∞");
+        } else if (dist[i] > INT_MAX) {
+            fprintf(out, "INT_MAX+");
+        } else {
+            fprintf(out, "%lld", dist[i]);
+        }
+        fprintf(out, "</td></tr>\n");
+    }
+    fprintf(out, "    </table>\n");
+
+    // Картинки
+    fprintf(out, "    <img src=\"../src/media/dota2.jpeg\" alt=\"dota2 meme\" width=\"300\" height=\"200\">\n");
+    fprintf(out, "    <img src=\"../src/media/eminem.jpeg\" alt=\"eminem yooo\" width=\"300\" height=\"200\">\n");
+    fprintf(out, "    <img src=\"../src/media/piggy.jpeg\" alt=\"nice piggy\" width=\"300\" height=\"200\">\n");
+
+    fprintf(out, "</body>\n</html>\n");
+    fclose(out);
 }
 
 void dijkstra(int N, int S, int F, int** graph)
@@ -74,7 +156,7 @@ void dijkstra(int N, int S, int F, int** graph)
         free(dist);
         free(prev);
         free(CountPaths);
-        FreeBitset(visited);
+        FREE_BITSET(visited);
         return; // Ошибка выделения памяти
     }
 
@@ -95,7 +177,7 @@ void dijkstra(int N, int S, int F, int** graph)
         long long MinDist = INF;
         for (int v = 1; v <= N; v++)
         {
-            if (!GetBitsetBit(visited, v) && dist[v] < MinDist)
+            if (!GET_BITSET_BIT(visited, v) && dist[v] < MinDist)
             {
                 MinDist = dist[v];
                 u = v;
@@ -105,7 +187,7 @@ void dijkstra(int N, int S, int F, int** graph)
         {
             break;
         }
-        SetBitsetBit(visited, u);
+        SET_BITSET_BIT(visited, u);
         for (int v = 1; v <= N; v++)
         {
             if (graph[u][v] != 0)
@@ -179,7 +261,7 @@ void dijkstra(int N, int S, int F, int** graph)
     free(dist);
     free(prev);
     free(CountPaths);
-    FreeBitset(visited);
+    FREE_BITSET(visited);
 }
 
 int main(int argc, char* argv[])
@@ -188,11 +270,27 @@ int main(int argc, char* argv[])
     int N, S, F, M;
     int** graph = NULL;
     long long* dist = NULL;
-    int* prev = NULL;
-    int* CountPaths = NULL;
+    int* path = NULL;
+    int pathSize = 0;
+    const char* inputFile = "in.txt";
+    const char* outputFileName = NULL;
 
-    // Обработка аргументов командной строки
-    if (argc == 3) // ./program <X> <Y>
+    if (argc == 1) // ./program без аргументов
+    {
+        in = fopen(inputFile, "r");
+    }
+    else if (argc == 2 && strcmp(argv[1], "-p") == 0) // ./program -p
+    {
+        in = fopen(inputFile, "r");
+        outputFileName = "out.html";
+    }
+    else if (argc == 3 && strcmp(argv[1], "-p") == 0) // ./program -p <input_file>
+    {
+        inputFile = argv[2];
+        in = fopen(inputFile, "r");
+        outputFileName = "out.html";
+    }
+    else if (argc == 3 && isdigit(argv[1][0]) && isdigit(argv[2][0])) // ./program <X> <Y>
     {
         int X = atoi(argv[1]);
         int Y = atoi(argv[2]);
@@ -204,10 +302,6 @@ int main(int argc, char* argv[])
         }
         maze_gen(X, Y);
         in = fopen("maze.txt", "r");
-    }
-    else // ./program или ./program <input_file>
-    {
-        in = fopen((argc == 2) ? argv[1] : "in.txt", "r");
     }
 
     if (!in)
@@ -285,34 +379,87 @@ int main(int argc, char* argv[])
     }
 
     dist = (long long*)malloc((N + 1) * sizeof(long long));
-    prev = (int*)malloc((N + 1) * sizeof(int));
-    CountPaths = (int*)malloc((N + 1) * sizeof(int));
-    if (!dist || !prev || !CountPaths)
+    if (!dist)
     {
         printf("Memory allocation failed\n");
         goto cleanup;
     }
 
-    for (int i = 1; i <= N; i++)
-    {
-        dist[i] = INF;
-        prev[i] = -1;
-        CountPaths[i] = 0;
-    }
-    dist[S] = 0;
-    CountPaths[S] = 1;
     dijkstra(N, S, F, graph);
 
+    if (outputFileName) {
+        for (int i = 1; i <= N; i++) {
+            dist[i] = INF;
+        }
+        dist[S] = 0;
+
+        int* prev = (int*)malloc((N + 1) * sizeof(int));
+        int* CountPaths = (int*)malloc((N + 1) * sizeof(int));
+        Bitset* visited = InitBitset();
+        path = (int*)malloc(N * sizeof(int));
+
+        if (!prev || !CountPaths || !visited || !path) {
+            free(prev);
+            free(CountPaths);
+            FREE_BITSET(visited);
+            free(path);
+            goto cleanup;
+        }
+
+        for (int i = 1; i <= N; i++) {
+            prev[i] = -1;
+            CountPaths[i] = 0;
+        }
+        CountPaths[S] = 1;
+
+        for (int count = 0; count < N; count++) {
+            int u = -1;
+            long long MinDist = INF;
+            for (int v = 1; v <= N; v++) {
+                if (!GET_BITSET_BIT(visited, v) && dist[v] < MinDist) {
+                    MinDist = dist[v];
+                    u = v;
+                }
+            }
+            if (u == -1) break;
+            SET_BITSET_BIT(visited, u);
+            for (int v = 1; v <= N; v++) {
+                if (graph[u][v] != 0) {
+                    long long weight = graph[u][v];
+                    if (dist[u] + weight < dist[v]) {
+                        dist[v] = dist[u] + weight;
+                        prev[v] = u;
+                        CountPaths[v] = CountPaths[u];
+                    }
+                    else if (dist[u] + weight == dist[v]) {
+                        CountPaths[v]++;
+                    }
+                }
+            }
+        }
+
+        if (dist[F] != INF && dist[F] <= INT_MAX) {
+            pathSize = 0;
+            for (int v = F; v != -1; v = prev[v]) {
+                path[pathSize++] = v;
+            }
+        }
+
+        generateHtml(outputFileName, N, graph, dist, path, pathSize);
+
+        free(prev);
+        free(CountPaths);
+        FREE_BITSET(visited);
+        free(path);
+    }
+
 cleanup:
-    if (graph)
-    {
+    if (graph) {
         for (int i = 1; i <= N; i++)
             if (graph[i]) free(graph[i]);
         free(graph);
     }
     free(dist);
-    free(prev);
-    free(CountPaths);
     if (in) fclose(in);
     return 0;
 }
