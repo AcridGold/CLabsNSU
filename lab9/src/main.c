@@ -47,7 +47,7 @@ Bitset* InitBitset()
  (((BtSt)->bits[((index) - 1) / 32] & (1 << (((index) - 1) % 32))) != 0) : 0)
 
 // HTML с подсветкой пути
-void generateHtml(const char* outputFileName, int N, int** graph, long long* dist, int* path, int pathSize)
+void generateHtml(const char* outputFileName)
 {
     FILE* out = fopen(outputFileName, "w");
     if (!out) {
@@ -56,32 +56,108 @@ void generateHtml(const char* outputFileName, int N, int** graph, long long* dis
     }
 
     fprintf(out, "<!DOCTYPE html>\n<html>\n<head>\n");
-    fprintf(out, "    <title>Adjacency Matrix and Shortest Paths</title>\n");
+    fprintf(out, "    <title>Graph Visualization</title>\n");
     fprintf(out, "    <style>\n");
     fprintf(out, "        table { border-collapse: collapse; }\n");
     fprintf(out, "        th, td { border: 1px solid black; padding: 5px; text-align: center; }\n");
-    fprintf(out, "        .path { background-color: brown; }\n"); // Стиль для ребер пути
-    fprintf(out, "        .vertex-path { background-color: yellow; }\n"); // Стиль для вершин пути
+    fprintf(out, "        .path { background-color: brown; }\n");
+    fprintf(out, "        .vertex-path { background-color: yellow; }\n");
     fprintf(out, "    </style>\n");
     fprintf(out, "</head>\n<body>\n");
+    fprintf(out, "    %%RESULT%%\n");
 
-    // Матрица смежности с путем
+    // Картинки
+    fprintf(out, "    <img src=\"../src/media/dota2.jpeg\" alt=\"dota2 meme\" width=\"300\" height=\"200\">\n");
+    fprintf(out, "    <img src=\"../src/media/eminem.jpeg\" alt=\"eminem yooo\" width=\"300\" height=\"200\">\n");
+    fprintf(out, "    <img src=\"../src/media/piggy.jpeg\" alt=\"nice piggy\" width=\"300\" height=\"200\">\n");
+
+
+    fprintf(out, "</body>\n</html>\n <!--");
+
+    fclose(out);
+}
+
+void generateHtmlTable(const char* outputFileName, int N, int** graph, long long* dist, int* path, int pathSize)
+{
+    if (!outputFileName || !graph || !dist) {
+        fprintf(stderr, "Invalid arguments to generateHtmlTable\n");
+        return;
+    }
+
+    FILE* out = fopen(outputFileName, "rb");
+    if (!out) {
+        fprintf(stderr, "Cannot open output file %s for reading\n", outputFileName);
+        return;
+    }
+
+    if (fseek(out, 0, SEEK_END) != 0) {
+        fprintf(stderr, "Failed to seek in file %s\n", outputFileName);
+        fclose(out);
+        return;
+    }
+
+    long fileSize = ftell(out);
+    if (fileSize == -1L) {
+        fprintf(stderr, "Failed to get file size for %s\n", outputFileName);
+        fclose(out);
+        return;
+    }
+
+    rewind(out);
+
+    char* buffer = (char*)malloc(fileSize + 1);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation failed for file buffer\n");
+        fclose(out);
+        return;
+    }
+
+    size_t bytesRead = fread(buffer, 1, fileSize, out);
+    fclose(out); // Закрываем файл сразу после чтения
+
+    if (bytesRead != (size_t)fileSize) {
+        fprintf(stderr, "Failed to read file %s completely\n", outputFileName);
+        free(buffer);
+        return;
+    }
+    buffer[bytesRead] = '\0';
+
+    const char* marker = "%RESULT%";
+    char* resultPos = strstr(buffer, marker);
+    if (!resultPos) {
+        fprintf(stderr, "Marker %%RESULT%% not found in template %s\n", outputFileName);
+        free(buffer);
+        return;
+    }
+
+    out = fopen(outputFileName, "wb");
+    if (!out) {
+        fprintf(stderr, "Cannot open output file %s for writing\n", outputFileName);
+        free(buffer);
+        return;
+    }
+
+    size_t prefixSize = resultPos - buffer;
+    if (fwrite(buffer, 1, prefixSize, out) != prefixSize) {
+        fprintf(stderr, "Failed to write prefix to %s\n", outputFileName);
+        fclose(out);
+        free(buffer);
+        return;
+    }
+
     fprintf(out, "    <h2>Adjacency Matrix</h2>\n    <table>\n");
     fprintf(out, "        <tr><th></th>");
+
     // Заголовки столбцов
     for (int i = 1; i <= N; i++) {
         int isVertexInPath = 0;
         for (int k = 0; k < pathSize; k++) {
-            if (path[k] == i) {
+            if (path && path[k] == i) {
                 isVertexInPath = 1;
                 break;
             }
         }
-        if (isVertexInPath) {
-            fprintf(out, "<th class=\"vertex-path\">%d</th>", i);
-        } else {
-            fprintf(out, "<th>%d</th>", i);
-        }
+        fprintf(out, isVertexInPath ? "<th class=\"vertex-path\">%d</th>" : "<th>%d</th>", i);
     }
     fprintf(out, "</tr>\n");
 
@@ -89,43 +165,35 @@ void generateHtml(const char* outputFileName, int N, int** graph, long long* dis
     for (int i = 1; i <= N; i++) {
         int isVertexInPath = 0;
         for (int k = 0; k < pathSize; k++) {
-            if (path[k] == i) {
+            if (path && path[k] == i) {
                 isVertexInPath = 1;
                 break;
             }
         }
-        if (isVertexInPath) {
-            fprintf(out, "        <tr><th class=\"vertex-path\">%d</th>", i);
-        } else {
-            fprintf(out, "        <tr><th>%d</th>", i);
-        }
+        fprintf(out, isVertexInPath ? "        <tr><th class=\"vertex-path\">%d</th>" : "        <tr><th>%d</th>", i);
 
         for (int j = 1; j <= N; j++) {
             int isPath = 0;
-            // Если часть пути (ребро)
-            for (int k = 0; k < pathSize - 1; k++) {
-                if ((path[k] == i && path[k + 1] == j) || (path[k] == j && path[k + 1] == i)) {
-                    isPath = 1;
-                    break;
+            if (path) {
+                for (int k = 0; k < pathSize - 1; k++) {
+                    if ((path[k] == i && path[k + 1] == j) || (path[k] == j && path[k + 1] == i)) {
+                        isPath = 1;
+                        break;
+                    }
                 }
             }
-            if (isPath && graph[i][j] != 0) {
-                fprintf(out, "<td class=\"path\">%d</td>", graph[i][j]);
-            } else {
-                fprintf(out, "<td>%d</td>", graph[i][j]);
-            }
+            fprintf(out, isPath && graph[i][j] ? "<td class=\"path\">%d</td>" : "<td>%d</td>", graph[i][j]);
         }
         fprintf(out, "</tr>\n");
     }
     fprintf(out, "    </table>\n");
 
-    // Таблица расстояний
     fprintf(out, "    <h2>Shortest Paths from Start Vertex</h2>\n    <table>\n");
     fprintf(out, "        <tr><th>Vertex</th><th>Distance</th></tr>\n");
     for (int i = 1; i <= N; i++) {
         fprintf(out, "        <tr><td>%d</td><td>", i);
         if (dist[i] == INF) {
-            fprintf(out, "∞");
+            fprintf(out, "INF");
         } else if (dist[i] > INT_MAX) {
             fprintf(out, "INT_MAX+");
         } else {
@@ -135,13 +203,14 @@ void generateHtml(const char* outputFileName, int N, int** graph, long long* dis
     }
     fprintf(out, "    </table>\n");
 
-    // Картинки
-    fprintf(out, "    <img src=\"../src/media/dota2.jpeg\" alt=\"dota2 meme\" width=\"300\" height=\"200\">\n");
-    fprintf(out, "    <img src=\"../src/media/eminem.jpeg\" alt=\"eminem yooo\" width=\"300\" height=\"200\">\n");
-    fprintf(out, "    <img src=\"../src/media/piggy.jpeg\" alt=\"nice piggy\" width=\"300\" height=\"200\">\n");
+    size_t markerLen = strlen(marker);
+    size_t suffixSize = strlen(resultPos + markerLen);
+    if (fwrite(resultPos + markerLen, 1, suffixSize, out) != suffixSize) {
+        fprintf(stderr, "Failed to write suffix to %s\n", outputFileName);
+    }
 
-    fprintf(out, "</body>\n</html>\n");
     fclose(out);
+    free(buffer);
 }
 
 void dijkstra(int N, int S, int F, int** graph)
@@ -290,6 +359,20 @@ int main(int argc, char* argv[])
         in = fopen(inputFile, "r");
         outputFileName = "out.html";
     }
+
+    else if (argc == 4 && strcmp(argv[1], "-p") == 0) // ./program -p <input_file> <changing_file>
+    {
+        inputFile = argv[2];
+        in = fopen(inputFile, "r");
+
+        size_t len = strlen(inputFile);
+        if (len > 5 && strcmp(inputFile + len - 5, ".html") == 0) {
+            outputFileName = inputFile;
+        } else {
+            outputFileName = "out.html";
+        }
+    }
+
     else if (argc == 3 && isdigit(argv[1][0]) && isdigit(argv[2][0])) // ./program <X> <Y>
     {
         int X = atoi(argv[1]);
@@ -445,7 +528,11 @@ int main(int argc, char* argv[])
             }
         }
 
-        generateHtml(outputFileName, N, graph, dist, path, pathSize);
+        // Генерация HTML
+        if (outputFileName) {
+            generateHtml(outputFileName);
+            generateHtmlTable(outputFileName, N, graph, dist, path, pathSize);
+        }
 
         free(prev);
         free(CountPaths);
