@@ -1,13 +1,7 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(lab5 C)
+project(labkosorajo C)
 
-set(SRC
-        src/main.c
-        src/huffman.h
-        src/huffman.c
-        src/Bits.c
-        src/Bits.h)
-
+set(SRC src/main.c)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
